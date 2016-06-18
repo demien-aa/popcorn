@@ -100,7 +100,7 @@ class Hub(object):
         with Hub.hub_lock:
             if id in Hub.MACHINES:
                 del Hub.MACHINES[id]
-                print '[Hub] Delete guard from hub server cache'
+                print '[Hub] Guard exited and delete it from hub server cache'
                 return True
             return False
 

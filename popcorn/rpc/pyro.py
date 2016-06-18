@@ -23,6 +23,8 @@ class PyroServer(BaseRPCServer):
 
     def get_ip(self):
         host = socket.gethostname()
+        print "HOST", host
+        print socket.gethostbyname(host)
         return socket.gethostbyname(host)
 
 

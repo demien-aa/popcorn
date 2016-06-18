@@ -1,6 +1,7 @@
 import hashlib
 import os
 import sys
+import Pyro4
 from popcorn.rpc.pyro import PyroClient
 import time
 import subprocess
@@ -38,17 +39,26 @@ class Guard(object):
     def loop(self, rpc_client):
         while True:
             print '[Guard] Heart beat %s' % self.id
-            self.collect_machine_info()
-            order = self.get_order(rpc_client)
-            if order:
-                print '[Guard] get order: %s' % str(order)
-                self.follow_order(order)
-            time.sleep(5)
+            try:
+                self.collect_machine_info()
+                order = self.get_order(rpc_client)
+                if order:
+                    print '[Guard] get order: %s' % str(order)
+                    self.follow_order(order)
+                time.sleep(5)
+            except Pyro4.errors.ConnectionClosedError:
+                print "Hub server is closed, guard will be close"
+                sys.exit(1)
+
 
     def enroll(self, rpc_client):
-        res = rpc_client.start_with_return('popcorn.apps.hub:hub_enroll', id=self.id)
-        if not res:
-            print "Failed to enroll: %s" % self.id
+        try:
+            res = rpc_client.start_with_return('popcorn.apps.hub:hub_enroll', id=self.id)
+            if not res:
+                print "Failed to enroll: %s" % self.id
+                sys.exit(1)
+        except Pyro4.errors.CommunicationError:
+            print "Hub server can not be connected, guard will be close"
             sys.exit(1)
 
     def unregister(self):

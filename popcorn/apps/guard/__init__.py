@@ -1,3 +1,6 @@
+import hashlib
+import os
+import sys
 from popcorn.rpc.pyro import PyroClient
 import time
 import subprocess
@@ -23,7 +26,14 @@ class Guard(object):
             time.sleep(5)
 
     def enroll(self):
-        self.rpc_client.start('popcorn.apps.hub:hub_enroll', id=self.id)
+        res = self.rpc_client.start_with_return('popcorn.apps.hub:hub_enroll', id=self.id)
+        if not res:
+            print "Failed to enroll: %s" % self.id
+            sys.exit(1)
+
+    def unregister(self):
+        res = self.rpc_client.start_with_return('popcorn.apps.hub:hub_unregister', id=self.id)
+        print "Unregister result is %s" % res
 
     def get_order(self):
         return self.rpc_client.start_with_return('popcorn.apps.hub:hub_send_order', id=self.id)

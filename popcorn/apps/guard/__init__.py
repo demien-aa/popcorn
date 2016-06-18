@@ -47,8 +47,8 @@ class Guard(object):
         while True:
             try:
                 order = self.get_order(rpc_client)
-                print '[Guard] get order: %s' % str(order)
                 if order:
+                    print '[Guard] get order: %s' % str(order)
                     self.follow_order(order)
                 time.sleep(5)
                 self.clear_worker()
@@ -115,7 +115,8 @@ class Guard(object):
         if number > 0:
             for _ in range(number):
                 if self.machine.health:
-                    self.processes[queue].append(subprocess.Popen(['celery', 'worker', '-Q', queue]))
+                    print '[Guard] Exec command: %s' % str(['celery', 'worker', '-Q', queue, '-c', '1'])
+                    self.processes[queue].append(subprocess.Popen(['celery', 'worker', '-Q', queue, '-c', '1']))
                     time.sleep(1)
                 else:
                     print '[Guard] not more resource on this machine'

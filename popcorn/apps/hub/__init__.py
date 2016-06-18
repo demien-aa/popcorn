@@ -151,24 +151,27 @@ class Hub(object):
 
     @staticmethod
     def send_order(id, stats):
-        # print '[Hub] guard stats: %s, %s' % (id, stats)
-        print "[Hub] Got order request from %s" % id
         try:
             with Hub.hub_lock:
                 machine = Hub.MACHINES.get(id, Machine(id))
                 machine.latest_heart = time.time()
                 Hub.MACHINES[id] = machine
                 machine.update_stats(stats)
-                print "[hub] Queue plan:", Hub.PLAN
-                for queue, worker_number in Hub.PLAN.iteritems():
-                    Hub.PLAN[queue] = Hub.load_balancing(queue, worker_number)
-                machine_plan = machine.plan(*Hub.PLAN.keys())
-                machine.clear_plan()
-                print "[hub] Plan machine:", id, machine_plan
-                return machine_plan
-        except Exception:
+                if filter(lambda a: a != 0, Hub.PLAN.values()):
+                    print "[Hub] Analyze Queue plan:", Hub.PLAN
+                    for queue, worker_number in Hub.PLAN.iteritems():
+                        Hub.PLAN[queue] = Hub.load_balancing(queue, worker_number)
+                    machine_plan = machine.plan(*Hub.PLAN.keys())
+                    print "[Hub] Create machine %s plan %s" % (str(id), str(machine_plan))
+                    machine.clear_plan()
+                    if filter(lambda a: a != 0, machine_plan.values()):
+                        print "[hub] Plan machine:", id, machine_plan
+                    return machine_plan
+        except Exception as e:
             import traceback
             traceback.print_exc()
+            print e
+            return {}
         return {}
 
     def get_worker_number(self, queue):
@@ -181,7 +184,8 @@ class Hub(object):
 
     @staticmethod
     def set_plan(plan):
-        Hub.PLAN.update(plan)
+        if filter(lambda a: a != 0, plan.values()):
+            Hub.PLAN.update(plan)
 
     @staticmethod
     def enroll(id):
@@ -207,7 +211,7 @@ class Hub(object):
     def load_balancing(queue, worker_number):
         with Hub.hub_lock:
             remain_worker = 0
-            while worker_number:
+            while worker_number > 0:
                 for id, machine in Hub.MACHINES.items():
                     if machine.health:
                         machine.add_plan(queue, 1)
@@ -217,17 +221,11 @@ class Hub(object):
                 if not [machine for machine in Hub.MACHINES.values() if machine.health]:
                     print '[Hub] warning , remain %d workers' % worker_number
                     remain_worker = worker_number
+                    return remain_worker
             for machine in Hub.MACHINES.values():
-                print '[Machine] %s take %d workers' % (machine.id, machine._plan[queue])
+                if machine._plan[queue]:
+                    print '[Machine] load balance: %s take %d workers' % (machine.id, machine._plan[queue])
             return remain_worker
-
-                # if worker_number > 0:
-                #     print '[Hub] warning , remain %d workers' % worker_number
-                #     return
-                # for id, machine in Hub.MACHINES.items():
-                #     worker_number -= machine.update_plan(queue, worker_number)
-                # if worker_number > 0:
-                #     print '[Hub] warning , remain %d workers' % worker_number
 
 
 def hub_send_order(id, stats):

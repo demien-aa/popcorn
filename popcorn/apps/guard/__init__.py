@@ -46,19 +46,18 @@ class Guard(object):
     def loop(self, rpc_client):
         while True:
             try:
-                print '[Guard] Heart beat %s' % self.id
                 order = self.get_order(rpc_client)
                 print '[Guard] get order: %s' % str(order)
                 if order:
                     self.follow_order(order)
                 time.sleep(5)
+                self.clear_worker()
             except Pyro4.errors.ConnectionClosedError:
                 print "Hub server is closed, guard will be close"
                 sys.exit(1)
             except Exception:
                 import traceback
                 traceback.print_exc()
-
 
     def enroll(self, rpc_client):
         try:
@@ -76,7 +75,6 @@ class Guard(object):
 
 
     def get_order(self, rpc_client):
-        print ">>>>rpc_client", rpc_client
         self.machine.update_stats(self.machine_info)
         return rpc_client.start_with_return('popcorn.apps.hub:hub_send_order',
                                             id=self.id,
@@ -88,7 +86,6 @@ class Guard(object):
         rdata = {'memory': self.memory,
                  'cpu': self.cpu_percent,
                  'workers': self.worker_stats}
-        print rdata
         return rdata
 
     def follow_order(self, order):
@@ -104,7 +101,14 @@ class Guard(object):
     def update_worker(self, queue, worker_number):
         plist = self.processes[queue]
         delta = worker_number - len(plist)
-        self.add_worker(queue, delta)
+        if delta > 0:
+            self.add_worker(queue, delta)
+
+    def clear_worker(self):
+        for queue in self.processes.keys():
+            if self.qsize(queue) == 0:
+                print '[Guard] Clear Work For Empyt Queue'
+                self.add_worker(queue, number=-100)
 
     def add_worker(self, queue, number=1):
         print '[Guard] Queue[%s], %d Workers' % (queue, number)
@@ -112,6 +116,7 @@ class Guard(object):
             for _ in range(number):
                 if self.machine.health:
                     self.processes[queue].append(subprocess.Popen(['celery', 'worker', '-Q', queue]))
+                    time.sleep(1)
                 else:
                     print '[Guard] not more resource on this machine'
         elif number < 0:
@@ -119,7 +124,8 @@ class Guard(object):
                 plist = self.processes[queue]
                 if len(plist) >= 1:
                     p = plist.pop()
-                    p.send_signal(2)  # send Ctrl + C to subprocess
+                    # p.send_signal(2)  # send Ctrl + C to subprocess
+                    p.terminate()  # send Ctrl + C to subprocess
                     p.wait()  # wait this process quit
                 else:
                     # no more workers
